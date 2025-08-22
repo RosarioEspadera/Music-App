@@ -1,39 +1,43 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-import requests
+import httpx
+import os
 
 app = FastAPI()
 
-# Allow CORS (so frontend can fetch)
+# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # allow all (you can restrict to your frontend domain)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-YOUTUBE_API_KEY = "AIzaSyATYkPNJbUpy6UbflmaFjXLyG6LQ_aqaw4"
+YOUTUBE_API_KEY = os.getenv("AIzaSyCEqR37yESpaMPezhwGHL-7A6KKJKlN7mE", "AIzaSyATYkPNJbUpy6UbflmaFjXLyG6LQ_aqaw4")
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 @app.get("/")
 def root():
-    return {"message": "Music Backend with YouTube Search is running 🎶"}
+    return {"message": "Music Backend with DB is running 🎶"}
 
 @app.get("/search")
-def search_tracks(q: str = Query(..., description="Search query")):
+async def search(q: str = Query(..., min_length=1)):
     try:
-        params = {
-            "part": "snippet",
-            "q": q,
-            "type": "video",
-            "videoCategoryId": "10",  # Music category
-            "maxResults": 10,
-            "key": YOUTUBE_API_KEY,
-        }
-        r = requests.get(YOUTUBE_SEARCH_URL, params=params)
-        r.raise_for_status()
-        data = r.json()
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                YOUTUBE_SEARCH_URL,
+                params={
+                    "part": "snippet",
+                    "q": q,
+                    "type": "video",
+                    "videoCategoryId": "10",  # Music
+                    "maxResults": 10,
+                    "key": YOUTUBE_API_KEY,
+                },
+            )
+            res.raise_for_status()
+            data = res.json()
 
         results = []
         for item in data.get("items", []):
@@ -41,7 +45,7 @@ def search_tracks(q: str = Query(..., description="Search query")):
                 "videoId": item["id"]["videoId"],
                 "title": item["snippet"]["title"],
                 "channel": item["snippet"]["channelTitle"],
-                "thumbnail": item["snippet"]["thumbnails"]["medium"]["url"],
+                "thumbnail": item["snippet"]["thumbnails"]["high"]["url"],
             })
 
         return {"results": results}
