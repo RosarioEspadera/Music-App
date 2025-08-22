@@ -13,7 +13,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-YOUTUBE_API_KEY = "AIzaSyCEqR37yESpaMPezhwGHL-7A6KKJKlN7mE"
+YOUTUBE_API_KEY = "AIzaSyATYkPNJbUpy6UbflmaFjXLyG6LQ_aqaw4"
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 @app.get("/")
