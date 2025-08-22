@@ -1,5 +1,6 @@
 // Point this to your deployed backend:
 const API = "https://music-app-dqaf.onrender.com";
+const API_URL = "https://music-app-dqaf.onrender.com";
 
 // Helpers
 const $ = (sel) => document.querySelector(sel);
