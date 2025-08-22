@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Music App 🎶</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>🎵 My Music App</h1>
+
+  <!-- Search Section -->
+  <section id="search-section">
+    <input type="text" id="searchInput" placeholder="Search songs...">
+    <button onclick="searchTracks()">Search</button>
+  </section>
+
+  <!-- Search Results -->
+  <section id="results-section">
+    <h2>Search Results</h2>
+    <div id="results"></div>
+  </section>
+
+  <!-- Playlist Section -->
+  <section id="playlist-section">
+    <h2>Playlists</h2>
+    <button onclick="createPlaylist()">+ New Playlist</button>
+    <div id="playlists"></div>
+  </section>
+
+  <!-- Audio Player -->
+  <section id="player-section">
+    <h2>Now Playing</h2>
+    <audio id="audioPlayer" controls></audio>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
