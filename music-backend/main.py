@@ -4,9 +4,11 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship, Session
-import os
+import os, requests
 
-# Database URL (from Render environment variable)
+# -------------------
+# Database Setup
+# -------------------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 
 engine = create_engine(DATABASE_URL)
@@ -29,11 +31,11 @@ class Track(Base):
     __tablename__ = "tracks"
 
     id = Column(Integer, primary_key=True, index=True)
-    track_id = Column(String, nullable=False)
+    track_id = Column(String, nullable=False)  # Deezer track ID
     title = Column(String, nullable=False)
     artist = Column(String, nullable=False)
-    preview = Column(String)
-    album_cover = Column(String)  # ✅ fixed snake_case
+    preview = Column(String)   # 30s preview from Deezer
+    album_cover = Column(String)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
 
     playlist = relationship("Playlist", back_populates="tracks")
@@ -48,7 +50,7 @@ class TrackCreate(BaseModel):
     title: str
     artist: str
     preview: str
-    album_cover: str  # ✅ fixed snake_case
+    album_cover: str
 
 
 class TrackOut(BaseModel):
@@ -84,7 +86,7 @@ app = FastAPI()
 # Allow frontend (CORS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # change this to your frontend domain in production
+    allow_origins=["*"],  # TODO: restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -114,6 +116,7 @@ def root():
     return {"message": "Music Backend with DB is running 🎶"}
 
 
+# ---- Playlist Endpoints ----
 @app.get("/playlists", response_model=list[PlaylistOut])
 def get_playlists(db: Session = Depends(get_db)):
     return db.query(Playlist).all()
@@ -147,3 +150,26 @@ def add_track(track: TrackCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_track)
     return new_track
+
+
+# ---- Deezer Integration ----
+@app.get("/search_deezer")
+def search_deezer(query: str):
+    url = f"https://api.deezer.com/search?q={query}"
+    response = requests.get(url)
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Failed to fetch from Deezer")
+
+    data = response.json()
+    results = []
+    for item in data.get("data", []):
+        results.append({
+            "track_id": str(item["id"]),
+            "title": item["title"],
+            "artist": item["artist"]["name"],
+            "preview": item["preview"],
+            "album_cover": item["album"]["cover_medium"]
+        })
+
+    return results
