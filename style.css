@@ -1,52 +1,13 @@
-body {
-  font-family: Arial, sans-serif;
-  margin: 20px;
-  background: #f4f4f9;
-  color: #333;
-}
-
-h1 {
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-section {
-  margin: 20px 0;
-  padding: 15px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-#results, #playlists {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 15px;
-}
-
-.track-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 10px;
-  background: #fafafa;
-  text-align: center;
-}
-
-.track-card img {
-  width: 100%;
-  border-radius: 6px;
-}
-
-button {
-  margin-top: 8px;
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  background: #007bff;
-  color: white;
-}
-
-button:hover {
-  background: #0056b3;
-}
+* { box-sizing: border-box; }
+body { font-family: system-ui, Arial, sans-serif; margin: 24px; background:#f7f7fb; color:#222; }
+h1 { text-align:center; margin-bottom: 16px; }
+section { background:#fff; padding:16px; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.06); margin:16px 0; }
+.row { margin:8px 0; display:flex; gap:8px; align-items:center; }
+input, select { width:100%; padding:10px; border:1px solid #ddd; border-radius:8px; }
+button { padding:10px 14px; border:0; border-radius:10px; background:#3b82f6; color:#fff; cursor:pointer; }
+button:hover { background:#2563eb; }
+#playlists { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:12px; }
+.card { background:#fafafa; border:1px solid #eee; border-radius:10px; padding:12px; }
+.track { display:flex; align-items:center; gap:10px; margin:8px 0; }
+.track img { width:50px; height:50px; object-fit:cover; border-radius:6px; }
+.badge { display:inline-block; background:#eef2ff; color:#3730a3; padding:4px 8px; border-radius:999px; font-size:12px; }
