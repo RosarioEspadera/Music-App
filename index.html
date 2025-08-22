@@ -1,74 +1,191 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deezer Music App</title>
+  <meta charset="UTF-8" />
+  <title>🎵 Music App (YouTube)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-      text-align: center;
-      padding: 20px;
-    }
-    input {
-      padding: 10px;
-      width: 300px;
-      margin-bottom: 20px;
-    }
-    .track {
-      background: #222;
-      margin: 10px;
-      padding: 15px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    img {
-      border-radius: 8px;
-      margin-right: 10px;
-    }
-    audio {
-      margin-left: 20px;
-    }
+    body { font-family: system-ui, Arial, sans-serif; margin: 20px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px; }
+    .flex { display: flex; align-items: center; gap: 10px; }
+    .thumb { width: 100px; height: 56px; object-fit: cover; border-radius: 8px; }
+    button { padding: 8px 12px; border-radius: 8px; border: none; cursor: pointer; }
+    button.primary { background: #111827; color: white; }
+    input, select { padding: 8px 10px; border-radius: 8px; border: 1px solid #d1d5db; width: 100%; }
+    .list { display: grid; gap: 10px; margin-top: 10px; }
+    h2 { margin: 0 0 10px 0; }
   </style>
 </head>
 <body>
-  <h1>🎵 Deezer Music App</h1>
-  <input id="searchBox" type="text" placeholder="Search for a song...">
-  <button onclick="searchMusic()">Search</button>
-  
-  <div id="results"></div>
+  <h1>🎵 Music App (YouTube)</h1>
 
+  <div class="row">
+    <!-- Search -->
+    <div class="card">
+      <h2>Search YouTube</h2>
+      <div class="flex">
+        <input id="q" placeholder="Search songs, artists..." />
+        <button class="primary" onclick="doSearch()">Search</button>
+      </div>
+      <div id="results" class="list"></div>
+    </div>
+
+    <!-- Player + Playlists -->
+    <div class="card">
+      <h2>Player</h2>
+      <div id="player" style="aspect-ratio:16/9; width:100%;"></div>
+
+      <h2 style="margin-top:16px;">Playlists</h2>
+      <div class="flex">
+        <input id="newPlaylistName" placeholder="New playlist name" />
+        <button onclick="createPlaylist()">+ Create</button>
+      </div>
+      <select id="playlistSelect" style="margin-top:10px;"></select>
+      <div id="playlistTracks" class="list" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- YouTube IFrame API -->
   <script>
-    async function searchMusic() {
-      const query = document.getElementById("searchBox").value;
-      const res = await fetch(`https://deezerdevs-deezer.p.rapidapi.com/search?q=${query}`, {
-        headers: {
-          "X-RapidAPI-Key": "d420cb254fmsh717cd139b060616p14f3a1jsnb9f577f96aab",
-          "X-RapidAPI-Host": "deezerdevs-deezer.p.rapidapi.com"
-        }
-      });
-      const data = await res.json();
-      const resultsDiv = document.getElementById("results");
-      resultsDiv.innerHTML = "";
-
-      data.data.forEach(track => {
-        const trackDiv = document.createElement("div");
-        trackDiv.className = "track";
-        trackDiv.innerHTML = `
-          <img src="${track.album.cover_small}" width="50">
-          <div>
-            <strong>${track.title}</strong><br>
-            ${track.artist.name}
-          </div>
-          <audio controls src="${track.preview}"></audio>
-        `;
-        resultsDiv.appendChild(trackDiv);
+    let player;
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        playerVars: { rel: 0, modestbranding: 1, autoplay: 0, controls: 1 },
+        events: {}
       });
     }
+    (function loadYT() {
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.body.appendChild(tag);
+    })();
+  </script>
+
+  <script>
+    // === CONFIG ===
+    const BACKEND_BASE = "https://music-app-dqaf.onrender.com"; // <-- your FastAPI URL
+
+    async function jsonFetch(url, opts = {}) {
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    // --- Search ---
+    async function doSearch() {
+      const q = document.getElementById("q").value.trim();
+      if (!q) return;
+      const data = await jsonFetch(`${BACKEND_BASE}/search?q=${encodeURIComponent(q)}`);
+      renderResults(data.items || []);
+    }
+
+    function renderResults(items) {
+      const box = document.getElementById("results");
+      box.innerHTML = "";
+      items.forEach(it => {
+        const div = document.createElement("div");
+        div.className = "flex";
+        div.innerHTML = `
+          <img class="thumb" src="${it.thumbnail}" alt="">
+          <div style="flex:1;">
+            <div><strong>${escapeHtml(it.title)}</strong></div>
+            <div style="color:#6b7280;">${escapeHtml(it.channelTitle)}</div>
+          </div>
+          <button onclick="play('${it.videoId}')">▶ Play</button>
+          <button class="primary" onclick='addToSelectedPlaylist(${JSON.stringify(it)})'>+ Add</button>
+        `;
+        box.appendChild(div);
+      });
+    }
+
+    function play(videoId) {
+      if (!player) return;
+      player.loadVideoById(videoId);
+    }
+
+    // --- Playlists ---
+    async function loadPlaylists() {
+      const data = await jsonFetch(`${BACKEND_BASE}/playlists`);
+      const select = document.getElementById("playlistSelect");
+      select.innerHTML = "";
+      data.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = `${p.name} (#${p.id})`;
+        select.appendChild(opt);
+      });
+      renderPlaylistTracks();
+    }
+
+    async function createPlaylist() {
+      const name = document.getElementById("newPlaylistName").value.trim();
+      if (!name) return;
+      await jsonFetch(`${BACKEND_BASE}/playlists`, {
+        method: "POST",
+        body: JSON.stringify({ name })
+      });
+      document.getElementById("newPlaylistName").value = "";
+      await loadPlaylists();
+    }
+
+    async function addToSelectedPlaylist(item) {
+      const sel = document.getElementById("playlistSelect");
+      if (!sel.value) { alert("Create or select a playlist first"); return; }
+
+      const payload = {
+        playlist_id: Number(sel.value),
+        track_id: item.videoId,              // store YT videoId
+        title: item.title,
+        artist: item.channelTitle,           // channel
+        preview: null,
+        album_cover: item.thumbnail
+      };
+      await jsonFetch(`${BACKEND_BASE}/playlists/add`, {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      await loadPlaylists(); // refresh list
+      // auto start playing
+      play(item.videoId);
+    }
+
+    function renderPlaylistTracks() {
+      const sel = document.getElementById("playlistSelect");
+      const listBox = document.getElementById("playlistTracks");
+      listBox.innerHTML = "";
+      if (!sel.value) return;
+      // Find the selected playlist by reusing the latest fetch (reload for simplicity)
+      jsonFetch(`${BACKEND_BASE}/playlists`).then(playlists => {
+        const p = playlists.find(pp => String(pp.id) === String(sel.value));
+        if (!p) return;
+        p.tracks.forEach(t => {
+          const row = document.createElement("div");
+          row.className = "flex";
+          row.innerHTML = `
+            <img class="thumb" src="${t.album_cover || ""}" alt="">
+            <div style="flex:1;">
+              <div><strong>${escapeHtml(t.title)}</strong></div>
+              <div style="color:#6b7280;">${escapeHtml(t.artist || "")}</div>
+            </div>
+            <button onclick="play('${t.track_id}')">▶ Play</button>
+          `;
+          listBox.appendChild(row);
+        });
+      });
+    }
+
+    document.getElementById("playlistSelect").addEventListener("change", renderPlaylistTracks);
+
+    function escapeHtml(s) {
+      return (s || "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    // bootstrap
+    loadPlaylists().catch(console.error);
   </script>
 </body>
 </html>
