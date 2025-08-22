@@ -4,3 +4,4 @@ sqlalchemy
 psycopg2-binary    # if using Postgres on Render
 pydantic
 requests
+httpx
