@@ -13,8 +13,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-YOUTUBE_API_KEY = os.getenv("AIzaSyCEqR37yESpaMPezhwGHL-7A6KKJKlN7mE", "AIzaSyATYkPNJbUpy6UbflmaFjXLyG6LQ_aqaw4")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 @app.get("/")
