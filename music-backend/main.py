@@ -1,138 +1,104 @@
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import requests, os
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import sessionmaker, relationship, declarative_base
+import os
 
-# --------------------------------------------------
-# FastAPI App + CORS
-# --------------------------------------------------
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Database setup
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set")
 
-# --------------------------------------------------
-# Database Config (SQLite locally / PostgreSQL in Render)
-# --------------------------------------------------
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./music.db")
-
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
-# --------------------------------------------------
-# Database Models
-# --------------------------------------------------
+# Models
 class Playlist(Base):
     __tablename__ = "playlists"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True)
-    tracks = relationship("Track", back_populates="playlist", cascade="all, delete")
+    name = Column(String, unique=True, nullable=False)
+    tracks = relationship("Track", back_populates="playlist")
 
 class Track(Base):
     __tablename__ = "tracks"
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String)
-    artist = Column(String)
-    preview = Column(String, nullable=True)
-    albumCover = Column(String, nullable=True)
+    track_id = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    artist = Column(String, nullable=False)
+    preview = Column(String)
+    albumCover = Column(String)
     playlist_id = Column(Integer, ForeignKey("playlists.id"))
     playlist = relationship("Playlist", back_populates="tracks")
 
+# Create tables
 Base.metadata.create_all(bind=engine)
 
-# --------------------------------------------------
-# Pydantic Models
-# --------------------------------------------------
+# FastAPI app
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return {"message": "Music Backend with DB is running 🎶"}
+
+@app.get("/playlists")
+def get_playlists():
+    db = SessionLocal()
+    playlists = db.query(Playlist).all()
+    result = []
+    for pl in playlists:
+        result.append({
+            "id": pl.id,
+            "name": pl.name,
+            "tracks": [
+                {
+                    "id": t.track_id,
+                    "title": t.title,
+                    "artist": t.artist,
+                    "preview": t.preview,
+                    "albumCover": t.albumCover
+                } for t in pl.tracks
+            ]
+        })
+    return result
+
 class PlaylistCreate(BaseModel):
     name: str
 
-class PlaylistAddTrack(BaseModel):
+@app.post("/playlists")
+def create_playlist(data: PlaylistCreate):
+    db = SessionLocal()
+    playlist = Playlist(name=data.name)
+    db.add(playlist)
+    db.commit()
+    db.refresh(playlist)
+    return {"id": playlist.id, "name": playlist.name, "tracks": []}
+
+class TrackAdd(BaseModel):
     playlist_id: int
+    track_id: str
     title: str
     artist: str
     preview: str | None = None
     albumCover: str | None = None
 
-# --------------------------------------------------
-# External APIs
-# --------------------------------------------------
-MUSIXMATCH_API_KEY = os.getenv("MUSIXMATCH_API_KEY", "demo_key")
-DEEZER_API = "https://api.deezer.com"
-
-# --------------------------------------------------
-# Routes
-# --------------------------------------------------
-@app.get("/")
-def root():
-    return {"message": "Music Backend with DB is running 🎶"}
-
-# Search Deezer
-@app.get("/search")
-def search_songs(q: str = Query(..., min_length=2)):
-    res = requests.get(f"{DEEZER_API}/search", params={"q": q})
-    data = res.json()
-    tracks = []
-    for item in data.get("data", []):
-        tracks.append({
-            "id": item["id"],
-            "title": item["title"],
-            "artist": item["artist"]["name"],
-            "preview": item.get("preview"),
-            "albumCover": item["album"]["cover_medium"]
-        })
-    return tracks
-
-# Lyrics via Musixmatch
-@app.get("/lyrics")
-def get_lyrics(artist: str, track: str):
-    url = "https://api.musixmatch.com/ws/1.1/matcher.lyrics.get"
-    params = {"q_artist": artist, "q_track": track, "apikey": MUSIXMATCH_API_KEY}
-    res = requests.get(url, params=params)
-    data = res.json()
-    message = data.get("message", {}).get("body", {}).get("lyrics")
-    if not message:
-        return {"lyrics": "Lyrics not found."}
-    return {"lyrics": message["lyrics_body"]}
-
-# ----------------- Playlist Endpoints -----------------
-@app.post("/playlists")
-def create_playlist(pl: PlaylistCreate):
-    db = SessionLocal()
-    new_pl = Playlist(name=pl.name)
-    db.add(new_pl)
-    db.commit()
-    db.refresh(new_pl)
-    db.close()
-    return {"id": new_pl.id, "name": new_pl.name}
-
-@app.get("/playlists")
-def list_playlists():
-    db = SessionLocal()
-    pls = db.query(Playlist).all()
-    result = [{"id": p.id, "name": p.name, "tracks": [
-        {"id": t.id, "title": t.title, "artist": t.artist, "preview": t.preview, "albumCover": t.albumCover}
-        for t in p.tracks]} for p in pls]
-    db.close()
-    return result
-
 @app.post("/playlists/add")
-def add_to_playlist(item: PlaylistAddTrack):
+def add_track(data: TrackAdd):
     db = SessionLocal()
-    pl = db.query(Playlist).filter(Playlist.id == item.playlist_id).first()
-    if not pl:
-        db.close()
+    playlist = db.query(Playlist).filter(Playlist.id == data.playlist_id).first()
+    if not playlist:
         raise HTTPException(status_code=404, detail="Playlist not found")
-    track = Track(title=item.title, artist=item.artist, preview=item.preview, albumCover=item.albumCover, playlist_id=item.playlist_id)
+
+    track = Track(
+        track_id=data.track_id,
+        title=data.title,
+        artist=data.artist,
+        preview=data.preview,
+        albumCover=data.albumCover,
+        playlist=playlist
+    )
     db.add(track)
     db.commit()
     db.refresh(track)
-    db.close()
-    return {"message": "Track added", "track_id": track.id}
+
+    return {"message": "Track added", "playlist_id": playlist.id}
